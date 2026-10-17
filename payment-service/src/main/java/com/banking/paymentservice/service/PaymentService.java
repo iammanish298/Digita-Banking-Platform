@@ -25,18 +25,14 @@ import java.util.UUID;
 @Slf4j
 public class PaymentService {
 
-    private final PaymentRepository paymentRepository;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    @Value("${razorpay.key-id}")
-    private String keyId;
-
-    @Value("${razorpay.key-secret}")
-    private String keySecret;
-
     private static final String PAYMENT_COMPLETED_TOPIC = "payment.completed";
     private static final String PAYMENT_FAILED_TOPIC = "payment.failed";
-
+    private final PaymentRepository paymentRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    @Value("${razorpay.key-id}")
+    private String keyId;
+    @Value("${razorpay.key-secret}")
+    private String keySecret;
 
     public PaymentOrderResponse createPaymentOrder(
             CreatePaymentRequest request) throws RazorpayException {

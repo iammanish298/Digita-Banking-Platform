@@ -27,20 +27,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TransactionService {
 
-    private final TransactionRepository transactionRepository;
-    private final AccountServiceClient accountServiceClient;
-
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final RedisTemplate<String, String> redisTemplate;
-
-
     private static final String TRANSACTION_INITIATED_TOPIC = "transaction.initiated";
     private static final String TRANSACTION_COMPLETED_TOPIC = "transaction.completed";
     private static final String TRANSACTION_REFUNDED_TOPIC = "transaction.refunded";
     private static final String FRAUD_DETECTED_TOPIC = "fraud.detected";
+    private final TransactionRepository transactionRepository;
+    private final AccountServiceClient accountServiceClient;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
 
-
-    public TransactionResponse transfer(TransferRequest request){
+    public TransactionResponse transfer(TransferRequest request) {
 
         log.info("SAGA START - Transfer: {} -> {} amount: {}",
                 request.getSenderAccountNumber(),
@@ -79,15 +75,15 @@ public class TransactionService {
         return mapToResponse(savedTransaction);
     }
 
-    public TransactionResponse getTransaction(String transactionId){
+    public TransactionResponse getTransaction(String transactionId) {
         return mapToResponse(transactionRepository
                 .findById(transactionId)
-                .orElseThrow(() ->  new RuntimeException(
-                        "Transaction not found: "+transactionId
+                .orElseThrow(() -> new RuntimeException(
+                        "Transaction not found: " + transactionId
                 )));
     }
 
-    public List<TransactionResponse> getTransactionHistory(String accountNumber){
+    public List<TransactionResponse> getTransactionHistory(String accountNumber) {
 
         return transactionRepository
                 .findBySenderAccountNumberOrderByCreatedAtDesc(accountNumber)
@@ -96,30 +92,30 @@ public class TransactionService {
                 .collect(Collectors.toList());
     }
 
-    public TransactionResponse verifyOTP(String transactionID, String otp){
+    public TransactionResponse verifyOTP(String transactionID, String otp) {
         log.info("OTP verification for the transaction: {}", transactionID);
 
         Transaction transaction = transactionRepository.findById(transactionID)
                 .orElseThrow(() -> new RuntimeException(
-                        "Transaction not found "+transactionID
+                        "Transaction not found " + transactionID
                 ));
 
         String otpKey = "verification:otp" + transactionID;
         String storedOtp = redisTemplate.opsForValue().get(otpKey);
 
-        if(storedOtp == null){
+        if (storedOtp == null) {
             // OTP EXPIRED
             log.warn("OTP expired for transaction: {}", transactionID);
             compensateTransaction(transaction, "OTP expired - transaction cancelled and amount refunded");
             return mapToResponse(transaction);
         }
 
-        if(!storedOtp.equals(otp)){
+        if (!storedOtp.equals(otp)) {
             // BLOCK ACCOUNT AND REFUND
             log.warn("Wrong OTP - blocking account and refunding: {}", transactionID);
             redisTemplate.delete(otpKey);
             blockAccountAndCompensate(transaction,
-                    "Wrong OTP entered - transaction cancelled, "+
+                    "Wrong OTP entered - transaction cancelled, " +
                             "account blocked for security");
 
             return mapToResponse(transaction);
@@ -144,7 +140,7 @@ public class TransactionService {
 
         transaction.setStatus(TransactionStatus.FLAGGED);
         transaction.setFailureReason(reason +
-                " - SAGA Compensation executed, amount refunded at "+ LocalDateTime.now());
+                " - SAGA Compensation executed, amount refunded at " + LocalDateTime.now());
 
         transactionRepository.save(transaction);
 
@@ -161,7 +157,7 @@ public class TransactionService {
                 transaction.getAmount(), transaction.getSenderAccountNumber());
     }
 
-    private void blockAccountAndCompensate(Transaction transaction, String reason){
+    private void blockAccountAndCompensate(Transaction transaction, String reason) {
 
         // Publish fraud.detected -> Account Service will block account
         Map<String, Object> fraudEvent = new HashMap<>();
@@ -177,7 +173,7 @@ public class TransactionService {
         compensateTransaction(transaction, reason);
     }
 
-    private void completeTransaction(Transaction transaction){
+    private void completeTransaction(Transaction transaction) {
         transaction.setStatus(TransactionStatus.COMPLETED);
         transaction.setCompletedAt(LocalDateTime.now());
         transactionRepository.save(transaction);
@@ -196,14 +192,14 @@ public class TransactionService {
                 transaction.getId());
     }
 
-    public void processCleanResult(String transactionID){
+    public void processCleanResult(String transactionID) {
 
         Transaction transaction = transactionRepository.findById(transactionID)
                 .orElseThrow(() -> new RuntimeException(
-                        "Transaction not found "+transactionID
+                        "Transaction not found " + transactionID
                 ));
 
-        if(transaction.getStatus() != TransactionStatus.PROCESSING){
+        if (transaction.getStatus() != TransactionStatus.PROCESSING) {
             log.warn("Transaction {} not PROCESSING - skipping", transactionID);
             return;
         }
@@ -212,7 +208,7 @@ public class TransactionService {
     }
 
 
-    private TransactionResponse mapToResponse(Transaction transaction){
+    private TransactionResponse mapToResponse(Transaction transaction) {
 
         TransactionResponse response = new TransactionResponse();
         response.setId(transaction.getId());
@@ -231,27 +227,6 @@ public class TransactionService {
 
         return response;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 }

@@ -16,16 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.util.Map;
-import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AccountService {
 
+    private static final SecureRandom secureRandom = new SecureRandom();
     private final AccountRepository accountRepository;
-    private static SecureRandom secureRandom = new SecureRandom();
-
 
     @Transactional
     public AccountResponse createAccount(CreateAccountRequest request) {
@@ -133,7 +131,7 @@ public class AccountService {
         }
     }
 
-    
+
     private String generateAccountNumber() {
         String accountNumber;
 

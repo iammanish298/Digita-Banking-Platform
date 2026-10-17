@@ -21,24 +21,22 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class TransactionEventConsumer {
 
+    private static final long OTP_EXPIRY_MINUTES = 5;
+    private static final String TRANSACTION_OTP_GENERATED_TOPIC = "transaction.otp.generated";
     private final TransactionRepository transactionRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final TransactionService transactionService;
-    private static final long OTP_EXPIRY_MINUTES = 5;
-
     private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    private static final String TRANSACTION_OTP_GENERATED_TOPIC = "transaction.otp.generated";
 
     @KafkaListener(topics = "verification.required")
     public void consumeVerificationRequired(
-            @Payload Map<String, Object> payload){
+            @Payload Map<String, Object> payload) {
 
-        try{
+        try {
 
-            String transactionId =  (String) payload.get("transactionId");
+            String transactionId = (String) payload.get("transactionId");
             String accountNumber = (String) payload.get("accountNumber");
-            String reason =  (String) payload.get("reason");
+            String reason = (String) payload.get("reason");
 
             log.info("Verification required - transaction: {} reason: {}",
                     transactionId, reason);
@@ -48,7 +46,7 @@ public class TransactionEventConsumer {
                             "Transaction not found " + transactionId
                     ));
 
-            if(transaction.getStatus() != TransactionStatus.PROCESSING){
+            if (transaction.getStatus() != TransactionStatus.PROCESSING) {
                 log.warn("Transaction {} not PROCESSING - skipping", transactionId);
                 return;
             }
@@ -77,22 +75,20 @@ public class TransactionEventConsumer {
 
             kafkaTemplate.send(TRANSACTION_OTP_GENERATED_TOPIC, transactionId, otpEvent);
 
-        }
-        catch(Exception e){
+        } catch (Exception e) {
             log.error("Error handling verification required: {}", e.getMessage());
         }
     }
 
     @KafkaListener(topics = "fraud.check.clean")
     public void consumeFraudCheckCleanResult(
-            @Payload Map<String, Object> payload){
+            @Payload Map<String, Object> payload) {
 
-        try{
+        try {
 
-            String transactionId =  (String) payload.get("transactionId");
+            String transactionId = (String) payload.get("transactionId");
             transactionService.processCleanResult(transactionId);
-        }
-        catch(Exception e){
+        } catch (Exception e) {
             log.error("Error processing fraud check result: {}", e.getMessage());
         }
     }

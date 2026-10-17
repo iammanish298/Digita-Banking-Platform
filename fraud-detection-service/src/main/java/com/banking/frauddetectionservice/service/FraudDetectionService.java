@@ -20,25 +20,21 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class FraudDetectionService {
 
+    private static final String VERIFICATION_REQUIRED_TOPIC = "verification.required";
+    private static final String FRAUD_CHECK_CLEAN_RESULT_TOPIC = "fraud.check.clean";
     private final AccountServiceClient accountServiceClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final RedisTemplate<String, String> redisTemplate;
-
     @Value("${fraud.max-transactions-per-minute}")
     private int maxTransactionsPerMinute;
-
     @Value("${fraud.suspicious-amount-multiplier}")
     private double suspiciousAmountMultiplier;
-
     @Value("${fraud.max-balance-percentage}")
     private double maxBalancePercentage;
 
-    private static final String VERIFICATION_REQUIRED_TOPIC = "verification.required";
-    private static final String FRAUD_CHECK_CLEAN_RESULT_TOPIC = "fraud.check.clean";
-
-    public void checkTransaction(Map<String,Object> payload){
-        String transactionId = (String)payload.get("transactionId");
-        String accountNumber = (String)payload.get("senderAccountNumber");
+    public void checkTransaction(Map<String, Object> payload) {
+        String transactionId = (String) payload.get("transactionId");
+        String accountNumber = (String) payload.get("senderAccountNumber");
         BigDecimal amount = new BigDecimal(payload.get("amount").toString());
 
 
@@ -50,9 +46,9 @@ public class FraudDetectionService {
 
         FraudCheckResult result = performFraudChecks(accountNumber, amount, senderBalance);
 
-        if(result.isFraud()){
+        if (result.isFraud()) {
 
-            log.info("Suspicious activity detected - account: {} "+
+            log.info("Suspicious activity detected - account: {} " +
                             "reason: {} - requesting OTP verification",
                     accountNumber, result.getReason());
 
@@ -63,8 +59,7 @@ public class FraudDetectionService {
             verificationEvent.put("reason", result.getReason());
 
             kafkaTemplate.send(VERIFICATION_REQUIRED_TOPIC, transactionId, verificationEvent);
-        }
-        else{
+        } else {
             // Transaction is clean
             log.info("Transaction clean");
 
@@ -83,22 +78,22 @@ public class FraudDetectionService {
             BigDecimal senderBalance) {
 
         // Pattern 1: Velocity Check
-        if(isVelocityExceeded(accountNumber)){
+        if (isVelocityExceeded(accountNumber)) {
             return new FraudCheckResult(
-                    true, "Too many transactions in 60 seconds "+
+                    true, "Too many transactions in 60 seconds " +
                     " - Velocity limit exceeded");
         }
 
         // Pattern 2: Amount check
-        if(isAmountSuspicious(accountNumber, amount)){
+        if (isAmountSuspicious(accountNumber, amount)) {
             return new FraudCheckResult(
-                    true, "Unusual transaction amount "+
+                    true, "Unusual transaction amount " +
                     " - exceeds 3x your average");
         }
 
         // Pattern 3: Balance Check
-        if(senderBalance.compareTo(BigDecimal.ZERO) > 0
-                && isBalanceCheckFailed(senderBalance, amount)){
+        if (senderBalance.compareTo(BigDecimal.ZERO) > 0
+                && isBalanceCheckFailed(senderBalance, amount)) {
             return new FraudCheckResult(
                     true, "Transaction exceed 90% of account balance");
         }
@@ -107,11 +102,11 @@ public class FraudDetectionService {
     }
 
 
-    private boolean isVelocityExceeded(String accountNumber){
+    private boolean isVelocityExceeded(String accountNumber) {
         String key = "fraud:velocity" + accountNumber;
         Long count = redisTemplate.opsForValue().increment(key);
 
-        if(count != null && count == 1){
+        if (count != null && count == 1) {
             redisTemplate.expire(key, 60, TimeUnit.SECONDS);
         }
 
@@ -123,11 +118,11 @@ public class FraudDetectionService {
 
     // Patter 2: if current amount > 3x average
 
-    private boolean isAmountSuspicious(String accountNumber, BigDecimal amount){
+    private boolean isAmountSuspicious(String accountNumber, BigDecimal amount) {
         String avgKey = "fraud:avg_amount" + accountNumber;
         String avgStr = redisTemplate.opsForValue().get(avgKey);
 
-        if(avgStr == null){
+        if (avgStr == null) {
             redisTemplate.opsForValue().set(avgKey, amount.toString());
             return false;
         }
@@ -148,7 +143,7 @@ public class FraudDetectionService {
         return amount.compareTo(threshold) > 0;
     }
 
-    private boolean isBalanceCheckFailed(BigDecimal senderBalance, BigDecimal amount){
+    private boolean isBalanceCheckFailed(BigDecimal senderBalance, BigDecimal amount) {
 
         BigDecimal maxAllowed = senderBalance.multiply(
                 BigDecimal.valueOf(maxBalancePercentage));
@@ -158,27 +153,6 @@ public class FraudDetectionService {
 
         return amount.compareTo(maxAllowed) > 0;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 }
